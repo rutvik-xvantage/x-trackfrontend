@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { useAuthStore } from '@/store/authStore';
+import { loginApi } from '@/api/auth.api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,51 +13,59 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function Login() {
   const [, setLocation] = useLocation();
-  const login = useAuthStore((state) => state.login);
+  const setUser = useAuthStore((state) => state.setUser);
+  const setToken = useAuthStore((state) => state.setToken);
   const { toast } = useToast();
   
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   
   // Form states
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleLogin = async (role: 'admin' | 'employee') => {
-    setIsLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      
-      // Mock login logic
-      if (email && password) {
-        const mockUser = {
-          id: role === 'admin' ? '1' : '2',
-          name: role === 'admin' ? 'Alex Admin' : 'Sarah Employee',
-          email: email,
-          role: role,
-          avatar: '',
-          department: 'Engineering',
-          position: role === 'admin' ? 'System Admin' : 'Frontend Developer'
-        };
-        
-        login(mockUser, 'mock-jwt-token');
-        
-        toast({
-          title: "Welcome back!",
-          description: `Logged in as ${role}`,
-        });
+  const handleLogin = async () => {
+    if (!username || !password) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Username and password are required.",
+      });
+      return;
+    }
 
-        setLocation(role === 'admin' ? '/admin/dashboard' : '/employee/dashboard');
+    try {
+      setIsLoading(true);
+
+      // REAL API CALL
+      const response = await loginApi({ username, password });
+      const { user, token } = response.data.data;
+
+      // Persist into Zustand store
+      setUser(user);
+      setToken(token);
+
+      toast({
+        title: "Welcome back!",
+        description: `Logged in as ${user.role}`,
+      });
+
+      // Redirect based on role
+      if (user.role === "admin") {
+        setLocation("/admin/dashboard");
       } else {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Please enter email and password",
-        });
+        setLocation("/employee/dashboard");
       }
-    }, 1000);
+
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Login Failed",
+        description: error.response?.data?.message || "Invalid username or password",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -75,27 +84,29 @@ export default function Login() {
             Sign in to your Xtrack account
           </CardDescription>
         </CardHeader>
+
         <CardContent>
           <Tabs defaultValue="employee" className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="employee">Employee</TabsTrigger>
               <TabsTrigger value="admin">Admin</TabsTrigger>
             </TabsList>
-            
+
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="username">Username</Label>
                 <div className="relative">
                   <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input 
-                    id="email" 
-                    placeholder="name@company.com" 
+                    id="username" 
+                    placeholder="Enter username" 
                     className="pl-10"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
                   />
                 </div>
               </div>
+
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Password</Label>
@@ -129,18 +140,18 @@ export default function Login() {
             <TabsContent value="employee">
               <Button 
                 className="w-full mt-6 h-11 text-base" 
-                onClick={() => handleLogin('employee')}
+                onClick={handleLogin}
                 disabled={isLoading}
               >
                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Sign in as Employee
               </Button>
             </TabsContent>
-            
+
             <TabsContent value="admin">
               <Button 
                 className="w-full mt-6 h-11 text-base" 
-                onClick={() => handleLogin('admin')}
+                onClick={handleLogin}
                 disabled={isLoading}
               >
                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -149,11 +160,13 @@ export default function Login() {
             </TabsContent>
           </Tabs>
         </CardContent>
+
         <CardFooter className="flex flex-col gap-4 text-center text-sm text-muted-foreground pb-8">
           <p>Don't have an account? <a href="#" className="text-primary font-medium hover:underline">Contact HR</a></p>
           <div className="text-xs text-muted-foreground/60">
             <p>Demo Credentials:</p>
-            <p>Any email + password works</p>
+            <p>Username: admin</p>
+            <p>Password: 123456</p>
           </div>
         </CardFooter>
       </Card>

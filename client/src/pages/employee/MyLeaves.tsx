@@ -1,57 +1,130 @@
-import { useState } from 'react';
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from "@/components/ui/select";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
   DialogTrigger,
   DialogFooter
 } from "@/components/ui/dialog";
 import { CalendarDays, Plus } from "lucide-react";
 
-const leaveRequests = [
-  { id: 1, type: 'Vacation', from: '2023-12-24', to: '2023-12-31', days: 6, status: 'Pending', reason: 'Year end holiday' },
-  { id: 2, type: 'Sick Leave', from: '2023-10-15', to: '2023-10-16', days: 2, status: 'Approved', reason: 'Fever' },
-  { id: 3, type: 'Personal', from: '2023-09-20', to: '2023-09-20', days: 1, status: 'Approved', reason: 'Car service' },
-];
+import {
+  getMyLeavesApi,
+  applyLeaveApi,
+  cancelLeaveApi
+} from "@/api/leaves.api";
+import { toast } from "@/hooks/use-toast";
 
 export default function MyLeaves() {
   const [isAddOpen, setIsAddOpen] = useState(false);
 
+  const [leaves, setLeaves] = useState([]);
+
+  // Form State
+  const [leaveType, setLeaveType] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [reason, setReason] = useState("");
+
+  // Load leaves
+  const loadLeaves = async () => {
+    try {
+      const res = await getMyLeavesApi();
+      setLeaves(res.data.data);
+    } catch (err) {
+      toast({ title: "Failed to load leaves", variant: "destructive" });
+    }
+  };
+
+  // Submit leave
+  const submitLeave = async () => {
+    if (!leaveType || !fromDate || !toDate || !reason) {
+      toast({ title: "All fields are required", variant: "destructive" });
+      return;
+    }
+
+    try {
+      await applyLeaveApi({
+        leaveType,
+        startDate: fromDate,
+        endDate: toDate,
+        totalDays:
+          (new Date(toDate).getTime() - new Date(fromDate).getTime()) /
+            (1000 * 60 * 60 * 24) +
+          1,
+        reason
+      });
+
+      toast({ title: "Leave submitted successfully" });
+      setIsAddOpen(false);
+      loadLeaves();
+
+      // Reset form
+      setLeaveType("");
+      setFromDate("");
+      setToDate("");
+      setReason("");
+    } catch (err) {
+      toast({ title: "Failed to submit leave", variant: "destructive" });
+    }
+  };
+
+  // Cancel a pending leave
+  const cancelLeave = async (id: number) => {
+    try {
+      await cancelLeaveApi(id);
+      toast({ title: "Leave cancelled" });
+      loadLeaves();
+    } catch (err) {
+      toast({ title: "Failed to cancel leave", variant: "destructive" });
+    }
+  };
+
+  useEffect(() => {
+    loadLeaves();
+  }, []);
+
   return (
     <div className="space-y-6">
+      {/* HEADER */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">My Leaves</h2>
           <p className="text-muted-foreground mt-1">Manage your leave requests and view balance.</p>
         </div>
+
+        {/* ADD LEAVE DIALOG */}
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus className="h-4 w-4" /> Request Leave
             </Button>
           </DialogTrigger>
+
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>Request Leave</DialogTitle>
             </DialogHeader>
+
             <div className="grid gap-4 py-4">
+              {/* Leave Type */}
               <div className="space-y-2">
-                <Label htmlFor="type">Leave Type</Label>
-                <Select>
+                <Label>Leave Type</Label>
+                <Select value={leaveType} onValueChange={setLeaveType}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
@@ -63,94 +136,97 @@ export default function MyLeaves() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Dates */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="from">From Date</Label>
-                  <Input id="from" type="date" />
+                  <Label>From Date</Label>
+                  <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="to">To Date</Label>
-                  <Input id="to" type="date" />
+                  <Label>To Date</Label>
+                  <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
                 </div>
               </div>
+
+              {/* Reason */}
               <div className="space-y-2">
-                <Label htmlFor="reason">Reason</Label>
-                <Textarea id="reason" placeholder="Why are you taking leave?" />
+                <Label>Reason</Label>
+                <Textarea
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Why are you taking leave?"
+                />
               </div>
             </div>
+
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
-              <Button onClick={() => setIsAddOpen(false)}>Submit Request</Button>
+              <Button variant="outline" onClick={() => setIsAddOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={submitLeave}>Submit Request</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="bg-blue-50 border-blue-100">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-blue-700 text-sm font-medium">Total Balance</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-blue-900">12 Days</div>
-            <p className="text-xs text-blue-600 mt-1">Remaining for 2023</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-green-50 border-green-100">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-green-700 text-sm font-medium">Used Leaves</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-green-900">8 Days</div>
-            <p className="text-xs text-green-600 mt-1">Approved leaves this year</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-yellow-50 border-yellow-100">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-yellow-700 text-sm font-medium">Pending</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-yellow-900">6 Days</div>
-            <p className="text-xs text-yellow-600 mt-1">Awaiting approval</p>
-          </CardContent>
-        </Card>
-      </div>
-
+      {/* LEAVE HISTORY */}
       <Card>
         <CardHeader>
           <CardTitle>Leave History</CardTitle>
-          <CardDescription>A list of your recent leave requests</CardDescription>
+          <CardDescription>Your recent leave activity</CardDescription>
         </CardHeader>
+
         <CardContent>
           <div className="space-y-4">
-            {leaveRequests.map((request) => (
-              <div key={request.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg gap-4">
+            {leaves.map((leave: any) => (
+              <div
+                key={leave.id}
+                className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg gap-4"
+              >
+                {/* Left section */}
                 <div className="flex items-start gap-4">
-                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mt-1 sm:mt-0">
+                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
                     <CalendarDays className="h-5 w-5 text-muted-foreground" />
                   </div>
+
                   <div>
                     <div className="flex items-center gap-2">
-                      <h4 className="font-semibold">{request.type}</h4>
-                      <Badge 
-                        variant="outline" 
+                      <h4 className="font-semibold capitalize">{leave.leaveType}</h4>
+
+                      <Badge
+                        variant="outline"
                         className={
-                          request.status === 'Approved' ? 'bg-green-50 text-green-700 border-green-200' :
-                          'bg-yellow-50 text-yellow-700 border-yellow-200'
+                          leave.status === "approved"
+                            ? "bg-green-50 text-green-700 border-green-200"
+                            : leave.status === "rejected"
+                            ? "bg-red-50 text-red-700 border-red-200"
+                            : leave.status === "cancelled"
+                            ? "bg-gray-200 text-gray-600"
+                            : "bg-yellow-50 text-yellow-700 border-yellow-200"
                         }
                       >
-                        {request.status}
+                        {leave.status}
                       </Badge>
                     </div>
+
                     <p className="text-sm text-muted-foreground mt-1">
-                      {new Date(request.from).toLocaleDateString()} - {new Date(request.to).toLocaleDateString()} • {request.days} days
+                      {leave.startDate} → {leave.endDate}
                     </p>
-                    <p className="text-sm mt-1">{request.reason}</p>
+
+                    <p className="text-sm mt-1">{leave.reason}</p>
                   </div>
                 </div>
+
+                {/* Cancel button */}
                 <div className="flex gap-2 self-end sm:self-center">
-                  {request.status === 'Pending' && (
-                    <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10 hover:text-destructive">
+                  {leave.status === "pending" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive hover:bg-destructive/10"
+                      onClick={() => cancelLeave(leave.id)}
+                    >
                       Cancel Request
                     </Button>
                   )}

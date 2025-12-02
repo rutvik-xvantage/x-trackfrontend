@@ -1,128 +1,181 @@
-import { useState } from 'react';
+import { useState } from "react";
 import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow 
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogTrigger,
-  DialogFooter
+  Dialog, DialogContent, DialogHeader, DialogTitle, 
+  DialogTrigger, DialogFooter 
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
 } from "@/components/ui/select";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Search, Plus, MoreVertical, Filter } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+import { 
+  DropdownMenu, DropdownMenuContent, 
+  DropdownMenuItem, DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 
-const initialEmployees = [
-  { id: 1, name: 'Sarah Johnson', role: 'Employee', department: 'Marketing', status: 'Active', email: 'sarah@xtrack.com' },
-  { id: 2, name: 'Michael Chen', role: 'Employee', department: 'Engineering', status: 'Active', email: 'michael@xtrack.com' },
-  { id: 3, name: 'Emma Davis', role: 'Employee', department: 'HR', status: 'On Leave', email: 'emma@xtrack.com' },
-  { id: 4, name: 'James Wilson', role: 'Manager', department: 'Sales', status: 'Active', email: 'james@xtrack.com' },
-  { id: 5, name: 'Lisa Anderson', role: 'Employee', department: 'Engineering', status: 'Inactive', email: 'lisa@xtrack.com' },
-];
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getUsersApi, createUserApi, deleteUserApi } from "@/api/users.api";
+import { useToast } from "@/hooks/use-toast";
 
 export default function EmployeeList() {
-  const [employees, setEmployees] = useState(initialEmployees);
-  const [searchQuery, setSearchQuery] = useState('');
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const [searchQuery, setSearchQuery] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
 
-  const filteredEmployees = employees.filter(emp => 
+  // Add Employee Form
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    username: "",
+    password: "",
+    role: "employee",
+  });
+
+  const { data: employees, isLoading } = useQuery({
+    queryKey: ["users"],
+    queryFn: async () => (await getUsersApi()).data.data,
+  });
+
+  const createEmployee = useMutation({
+    mutationFn: (data: any) => createUserApi(data),
+    onSuccess: () => {
+      toast({ title: "Employee Added" });
+      queryClient.invalidateQueries(["users"]);
+      setIsAddOpen(false);
+      setForm({
+        name: "",
+        email: "",
+        username: "",
+        password: "",
+        role: "employee",
+      });
+    },
+    onError: (err: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err.response?.data?.message || "Failed to create employee",
+      });
+    },
+  });
+
+  const deleteEmployee = useMutation({
+    mutationFn: (id: number) => deleteUserApi(id),
+    onSuccess: () => {
+      toast({ title: "Employee Deleted" });
+      queryClient.invalidateQueries(["users"]);
+    },
+  });
+
+  const filteredEmployees = employees?.filter((emp: any) =>
     emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    emp.department.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+    (emp.department || "").toLowerCase().includes(searchQuery.toLowerCase())
+  ) || [];
+
+  // Update form field
+  const updateField = (field: string, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Employees</h2>
-          <p className="text-muted-foreground mt-1">Manage your team members and their roles.</p>
+          <p className="text-muted-foreground mt-1">
+            Manage your team members and their roles.
+          </p>
         </div>
+
+        {/* ADD EMPLOYEE DIALOG */}
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus className="h-4 w-4" /> Add Employee
             </Button>
           </DialogTrigger>
+
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>Add New Employee</DialogTitle>
             </DialogHeader>
+
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name</Label>
-                  <Input id="firstName" placeholder="John" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name</Label>
-                  <Input id="lastName" placeholder="Doe" />
-                </div>
-              </div>
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" placeholder="john.doe@xtrack.com" type="email" />
+                <Label>Name</Label>
+                <Input 
+                  value={form.name} 
+                  onChange={(e) => updateField("name", e.target.value)} 
+                />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="department">Department</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="engineering">Engineering</SelectItem>
-                      <SelectItem value="marketing">Marketing</SelectItem>
-                      <SelectItem value="sales">Sales</SelectItem>
-                      <SelectItem value="hr">HR</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="role">Role</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="employee">Employee</SelectItem>
-                      <SelectItem value="manager">Manager</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Input 
+                  type="email" 
+                  value={form.email}
+                  onChange={(e) => updateField("email", e.target.value)} 
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Username</Label>
+                <Input 
+                  value={form.username}
+                  onChange={(e) => updateField("username", e.target.value)} 
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Password</Label>
+                <Input 
+                  type="password"
+                  value={form.password}
+                  onChange={(e) => updateField("password", e.target.value)} 
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Role</Label>
+                <Select
+                  value={form.role}
+                  onValueChange={(val) => updateField("role", val)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="employee">Employee</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
+
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
-              <Button onClick={() => setIsAddOpen(false)}>Create Employee</Button>
+              <Button variant="outline" onClick={() => setIsAddOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={() => createEmployee.mutate(form)}>
+                Create Employee
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
+      {/* SEARCH BAR */}
       <div className="flex items-center gap-2 bg-card p-4 rounded-lg border">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -138,62 +191,70 @@ export default function EmployeeList() {
         </Button>
       </div>
 
+      {/* TABLE */}
       <div className="rounded-md border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Department</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredEmployees.map((employee) => (
-              <TableRow key={employee.id}>
-                <TableCell className="font-medium">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback>{employee.name.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{employee.name}</p>
-                      <p className="text-xs text-muted-foreground">{employee.email}</p>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell>{employee.role}</TableCell>
-                <TableCell>
-                  <Badge variant="secondary" className="font-normal">{employee.department}</Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge 
-                    variant={employee.status === 'Active' ? 'default' : employee.status === 'Inactive' ? 'destructive' : 'outline'}
-                    className={employee.status === 'Active' ? 'bg-green-500 hover:bg-green-600' : ''}
-                  >
-                    {employee.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="h-8 w-8 p-0">
-                        <span className="sr-only">Open menu</span>
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem>View Profile</DropdownMenuItem>
-                      <DropdownMenuItem>Edit Details</DropdownMenuItem>
-                      <DropdownMenuItem className="text-red-600">Deactivate</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
+        {isLoading ? (
+          <div className="p-4 text-center text-muted-foreground">
+            Loading employees...
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+
+            <TableBody>
+              {filteredEmployees.map((emp: any) => (
+                <TableRow key={emp.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback>{emp.name?.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium">{emp.name}</p>
+                        <p className="text-xs text-muted-foreground">{emp.email}</p>
+                      </div>
+                    </div>
+                  </TableCell>
+
+                  <TableCell>{emp.role}</TableCell>
+
+                  <TableCell>{emp.email}</TableCell>
+
+                  <TableCell>
+                    <Badge>{emp.isActive ? "Active" : "Inactive"}</Badge>
+                  </TableCell>
+
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 w-8 p-0">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem>Edit</DropdownMenuItem>
+                        <DropdownMenuItem 
+                          className="text-red-600"
+                          onClick={() => deleteEmployee.mutate(emp.id)}
+                        >
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </div>
     </div>
   );
