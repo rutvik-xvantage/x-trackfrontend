@@ -4,8 +4,16 @@ export const getMyReportsApi = () => api.get("/api/daily-reports/me");
 export const createReportApi = (data: any) =>
   api.post("/api/daily-reports", data);
 
-export const updateReportApi = (id: number, data: any) =>
-  api.put(`/api/daily-reports/${id}`, data);
+export const updateReportApi = (
+  id: number,
+  payload: {
+    tasks: string;
+    hoursSpent: number;
+    admin?: string;
+  },
+) => {
+  return api.put(`/api/daily-reports/${id}`, payload);
+};
 
 export const getDailyReportsApi = () => {
   return api.get("/api/daily-reports");
